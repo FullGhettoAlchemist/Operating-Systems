@@ -1,0 +1,164 @@
+#! #!/bin/bash
+
+# PROGRAM 1
+# Author: Anthony Quach
+# Date: April 4, 2018
+# Description: This program is meant to perform basic matrix math including the following functions:
+#   print the dimensions of a matrix
+#   transpose a matrix
+#   calculate the mean vector of a matrix
+#   add two matrices
+#   multiply two matrices.
+# Input: from a file or stdin, input is whole numbers separated by tabs in a rectangular
+#        matrix
+#-------------------------------------------------------------------------------
+readError=$( echo "Error. Unable to read file." )
+unavailableError=$( echo "Error. No matrix available." )
+
+transposed=trans$$
+echo "$@"
+
+
+
+# check to see if there is an operation selected to perform, if not throw an error
+if [[ "$1" != "" ]]; then
+    arg1="$1"
+else
+    echo "$unavailableError"
+fi
+
+#check to see if there is a second argument and assign it if it exists
+#TODO: figure out if this file is readable or not
+if [[ "$2" != "" ]]; then
+    arg2="$2"
+fi
+
+#check to see if there is a third argument and assign it if it exists
+#TODO: figure out if this file is readable or not
+if [[ "$3" != "" ]]; then
+    arg3="$3"
+fi
+
+echo "$arg3"
+#echo "$arg1"
+
+# if [[ $arg1 == "" ]];
+# 	then
+# 		echo "$errorMessage"
+# fi
+
+function dims () {
+   # echo "Calling DIMS";
+   row_count=0
+   col_count=0   
+
+#read in the matrix given by the first argument into a variable called array
+readarray array < $arg2
+first_row=${array[0]}
+
+#find the length of the first row
+for i in $first_row
+do
+	((col_count++))
+done                                
+
+#find the number of rows in the array
+for row in "${array[@]}";do                                                      
+	  ((row_count++))                                                                
+ done  
+
+local dimensions="$row_count $col_count"
+echo $dimensions
+
+}
+
+transpose() {
+   echo "Calling TRANSPOSE";
+ 
+   col_count=0 
+
+   readarray array < $arg2
+   first_row=${array[0]}
+
+	#find the length of the first row
+	for i in $first_row
+		do
+			((col_count++))
+	done  
+
+   for (( i=1; i <= $col_count; i++))
+		do cut -f $i $arg2 | tr $'\n' $'\t' | sed -e "s/\t$/\n/g" >> transposed
+	done
+
+cat transposed
+rm -f transposed
+}
+
+
+#check the dimensions of both matrices and make sure you are able to perform mathematical operations on them
+mean() {
+   echo "Calling MEAN";
+
+   #check to see if arg3 is given
+   matrix1=()
+   matrix2=()
+
+   readarray m1 < $arg2
+   readarray m2 < $arg3
+   first_row=${m1[0]}
+   col_count=0
+   row_count=${#m1[@]}
+   for i in $first_row
+		do
+			((col_count++))
+		done 
+	len=$(($row_count * $col_count))
+	
+	for j in $m1; do
+		matrix1+=$j
+	done
+
+	for k in $m2; do
+		matrix2+=$k
+	done
+
+	echo $matrix1
+   #x=$(dims $arg2) # store the dimensions of matrix in variable
+   
+   # for i in ${m1[@]}; do
+   # 		echo $i 
+   # 	done
+}
+
+add() {
+   echo "Calling ADD";
+}
+
+multiply() {
+   echo "Calling MULTIPLY";
+}
+
+if [ "$1" == "dims" ]  #check what the command line argument is
+	then
+		dims $arg2 #call to the function
+fi
+
+if [ "$1" == "transpose" ]  #check what the command line argument is
+	then
+		transpose  #call to the function
+fi
+
+if [ "$1" == "mean" ]  #check what the command line argument is
+	then
+		mean  #call to the function
+fi
+
+if [ "$1" == "add" ]  #check what the command line argument is
+	then
+		add  #call to the function
+fi
+
+if [ "$1" == "multiply" ]  #check what the command line argument is
+	then
+		multiply  #call to the function
+fi
