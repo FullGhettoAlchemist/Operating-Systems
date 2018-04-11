@@ -1,4 +1,4 @@
-#! #!/bin/bash
+#!/bin/bash
 
 # PROGRAM 1
 # Author: Anthony Quach
@@ -15,8 +15,12 @@
 readError=$( echo "Error. Unable to read file." )
 unavailableError=$( echo "Error. No matrix available." )
 
+temp=temporary$$
+matrix1=temp1$$
+matrix2=temp2$$
 transposed=trans$$
-echo "$@"
+average=avg$$
+matrix_sum=mat_sum$$
 
 
 
@@ -39,7 +43,6 @@ if [[ "$3" != "" ]]; then
     arg3="$3"
 fi
 
-echo "$arg3"
 #echo "$arg1"
 
 # if [[ $arg1 == "" ]];
@@ -48,32 +51,53 @@ echo "$arg3"
 # fi
 
 function dims () {
-   # echo "Calling DIMS";
-   row_count=0
-   col_count=0   
+#    # echo "Calling DIMS";
+#    row_count=0
+#    col_count=0   
 
-#read in the matrix given by the first argument into a variable called array
-readarray array < $arg2
-first_row=${array[0]}
+# #read in the matrix given by the first argument into a variable called array
+# readarray array < $arg2
+# first_row=${array[0]}
 
-#find the length of the first row
-for i in $first_row
+# #find the length of the first row
+# for i in $first_row
+# do
+# 	((col_count++))
+# done                                
+
+# #find the number of rows in the array
+# for row in "${array[@]}";do                                                      
+# 	  ((row_count++))                                                                
+#  done  
+
+# local dimensions="$row_count $col_count"
+# echo $dimensions
+
+while read line
 do
-	((col_count++))
-done                                
+  echo $line >> temp
+done < "${1:-/dev/stdin}"
 
-#find the number of rows in the array
-for row in "${array[@]}";do                                                      
-	  ((row_count++))                                                                
- done  
+counter=0
 
-local dimensions="$row_count $col_count"
-echo $dimensions
+while read row
+do
+	for i in $row
+	do
+		((counter++))
+	done
+done < temp
+
+row_count=$(wc -l < temp)
+col_count=$(($counter/$row_count))
+
+echo "$row_count $col_count"
+
+rm -f temp
 
 }
 
 transpose() {
-   echo "Calling TRANSPOSE";
  
    col_count=0 
 
@@ -95,43 +119,87 @@ rm -f transposed
 }
 
 
-#check the dimensions of both matrices and make sure you are able to perform mathematical operations on them
+#TODO: format the mean to appear as a row matrix
 mean() {
-   echo "Calling MEAN";
-
-   #check to see if arg3 is given
-   matrix1=()
-   matrix2=()
-
-   readarray m1 < $arg2
-   readarray m2 < $arg3
-   first_row=${m1[0]}
-   col_count=0
-   row_count=${#m1[@]}
-   for i in $first_row
-		do
-			((col_count++))
-		done 
-	len=$(($row_count * $col_count))
-	
-	for j in $m1; do
-		matrix1+=$j
-	done
-
-	for k in $m2; do
-		matrix2+=$k
-	done
-
-	echo $matrix1
-   #x=$(dims $arg2) # store the dimensions of matrix in variable
    
-   # for i in ${m1[@]}; do
-   # 		echo $i 
-   # 	done
+	# define some variables to hold temporary files
+   m1t=./m1trans
+   temp1=./tempfile
+
+   
+   # read in the matrix of interest
+   row_count=0
+   while read line
+   do
+   	echo $line >> $temp1
+   	((row_count++))
+   done < $arg2
+
+   # transpose the matrix so we can perform the summation on each row
+   transpose $tempfile >> $m1t
+
+   #loop through the transposed matrix and sum all values in the row
+
+   sums=0
+   val=0
+   while read row
+   do
+   	for i in $row 
+   	do
+   		sums=$(($sums+$i))
+   		val=$(( (sums + ($row_count / 2)) / $row_count )) #(a + (b/2)*( (a>0)*2-1 )) / b
+   	done
+   	echo $val >> average
+   	sums=0
+   	val=0
+   done < $m1t
+
+   cat average
+   rm -f average $temp1 $m1t
 }
 
 add() {
-   echo "Calling ADD";
+	echo "Calling ADD";
+   
+	temp=./tempfile
+	trans=./trans
+
+	while read row
+	do
+		for i in $row
+		do
+			echo -n "$i	" >> $temp
+		done
+	done < $arg2
+
+	echo -e >> $temp
+
+	while read row
+	do
+		for j in $row
+		do
+			echo -n "$j	" >> $temp
+		done
+	done < $arg3
+
+	echo -e >> $temp
+
+	arg2=$temp
+	transpose tempfile >> $trans
+
+	sums=0
+	while read row
+	do
+		for k in $row
+		do
+			sums=$(($sums+$k))
+		done
+		echo $sums >> matrix_sum
+		sums=0
+	done < $trans
+	
+	cat matrix_sum
+	rm -f $temp $trans matrix_sum
 }
 
 multiply() {
@@ -140,7 +208,8 @@ multiply() {
 
 if [ "$1" == "dims" ]  #check what the command line argument is
 	then
-		dims $arg2 #call to the function
+		# dims $arg2 #call to the function
+		dims "${@:2}" #call to the function
 fi
 
 if [ "$1" == "transpose" ]  #check what the command line argument is
