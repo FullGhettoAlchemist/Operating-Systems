@@ -16,13 +16,16 @@ readError=$( echo "Error. Unable to read file." )
 unavailableError=$( echo "Error. No matrix available." )
 
 temp=temporary$$
+temp2=temporary2$$
 matrix1=temp1$$
 matrix2=temp2$$
 transposed=trans$$
+transposed2=transposed2$$
 average=avg$$
 matrix_sum=mat_sum$$
+results=result$$
 
-
+trap 'rm -f $temp $temp2 $results $transposed $transposed2 $average $results; exit 1' INT HUP TERM
 
 # check to see if there is an operation selected to perform, if not throw an error
 if [[ "$1" != "" ]]; then
@@ -73,13 +76,76 @@ function dims () {
 # local dimensions="$row_count $col_count"
 # echo $dimensions
 
+#if a file exists, read from it and make a copy to use in temp file
+#if not, get input from stdin and copy that over to a temp file
 while read line
 do
   echo $line >> temp
 done < "${1:-/dev/stdin}"
 
+#initiate a counter to keep track of total number of elements in the matrix
 counter=0
 
+#loop through the temp file to count all elements 
+while read row
+do
+	for i in $row
+	do
+		((counter++))
+	done
+done < temp
+
+#count the number of lines in the temp file using word count
+row_count=$(wc -l < temp)
+#the column count is equal to the total number of elements/# of rows
+col_count=$(($counter/$row_count))
+
+#print out the result
+echo "$row_count $col_count"
+
+rm -f temp
+
+}
+
+transpose () {
+ 
+#    col_count=0 
+
+#    readarray array < $arg2
+#    first_row=${array[0]}
+
+# 	#find the length of the first row
+# 	for i in $first_row
+# 		do
+# 			((col_count++))
+# 	done  
+
+#    for (( i=1; i <= $col_count; i++))
+# 		do cut -f $i $arg2 | tr $'\n' $'\t' | sed -e "s/\t$/\n/g" >> transposed
+# 	done
+
+# cat transposed
+# rm -f transposed
+
+#if a file exists, read from it and make a copy to use in temp file
+#if not, get input from stdin and copy that over to a temp file
+# while read line
+# do
+#   echo -e $line >> temp
+# done < "${1:-/dev/stdin}"
+
+while read line
+do
+  for i in $line
+  do
+  	echo -e -n "$i \t" >> temp
+  done
+  echo -e >> temp
+done < "${1:-/dev/stdin}"
+
+counter=0
+
+#loop through the temp file to count all elements 
 while read row
 do
 	for i in $row
@@ -91,31 +157,14 @@ done < temp
 row_count=$(wc -l < temp)
 col_count=$(($counter/$row_count))
 
-echo "$row_count $col_count"
-
-rm -f temp
-
-}
-
-transpose() {
- 
-   col_count=0 
-
-   readarray array < $arg2
-   first_row=${array[0]}
-
-	#find the length of the first row
-	for i in $first_row
-		do
-			((col_count++))
-	done  
-
-   for (( i=1; i <= $col_count; i++))
-		do cut -f $i $arg2 | tr $'\n' $'\t' | sed -e "s/\t$/\n/g" >> transposed
+   for (( i=1; i <= $col_count; i++)) # previously <=
+		do cut -f $i temp | tr "\n" "\t" >> transposed
+		echo -e >> transposed
 	done
 
 cat transposed
-rm -f transposed
+rm -f temp transposed
+
 }
 
 
@@ -123,20 +172,19 @@ rm -f transposed
 mean() {
    
 	# define some variables to hold temporary files
-   m1t=./m1trans
-   temp1=./tempfile
-
    
    # read in the matrix of interest
-   row_count=0
    while read line
-   do
-   	echo $line >> $temp1
-   	((row_count++))
-   done < $arg2
+	do
+	  for i in $line
+	  do
+	  	echo -e -n "$i \t" >> temp2
+	  done
+	  echo -e >> temp2
+	done < "${1:-/dev/stdin}"
 
    # transpose the matrix so we can perform the summation on each row
-   transpose $tempfile >> $m1t
+   transpose temp2 >> transposed2
 
    #loop through the transposed matrix and sum all values in the row
 
@@ -152,40 +200,58 @@ mean() {
    	echo $val >> average
    	sums=0
    	val=0
-   done < $m1t
+   done < transposed2
 
-   cat average
-   rm -f average $temp1 $m1t
+   cat average | tr '\n' '\t' > results
+   cat results
+   rm -f average transposed2 temp2 results
 }
 
 add() {
-	echo "Calling ADD";
    
-	temp=./tempfile
-	trans=./trans
+   #read file in $1
+   while read line
+	do
+	  for i in $line
+	  do
+	  	echo -e -n "$i \t" >> temp
+	  done
+	  echo -e >> temp
+	done < "${1:-/dev/stdin}"
+
+	#read file in $2
+	while read line
+	do
+	  for i in $line
+	  do
+	  	echo -e -n "$i \t" >> temp2
+	  done
+	  echo -e >> temp2
+	done < "${2:-/dev/stdin}"
+
 
 	while read row
 	do
 		for i in $row
 		do
-			echo -n "$i	" >> $temp
+			echo -n "$i	" >> matrix_sum
 		done
-	done < $arg2
+	done < temp
 
-	echo -e >> $temp
+	echo -e >> matrix_sum
 
 	while read row
 	do
 		for j in $row
 		do
-			echo -n "$j	" >> $temp
+			echo -n "$j	" >> matrix_sum
 		done
-	done < $arg3
+	done < temp2
 
-	echo -e >> $temp
+	echo -e >> matrix_sum
 
 	arg2=$temp
-	transpose tempfile >> $trans
+	transpose matrix_sum >> transposed2
 
 	sums=0
 	while read row
@@ -194,12 +260,17 @@ add() {
 		do
 			sums=$(($sums+$k))
 		done
-		echo $sums >> matrix_sum
+		echo $sums >> results
 		sums=0
-	done < $trans
+	done < transposed2
 	
+	echo "intermediate:"
 	cat matrix_sum
-	rm -f $temp $trans matrix_sum
+	echo "transposed intermediate"
+	cat transposed2
+	echo "resuts:"
+	cat results
+	rm -f temp temp2 matrix_sum results transposed2
 }
 
 multiply() {
@@ -214,17 +285,17 @@ fi
 
 if [ "$1" == "transpose" ]  #check what the command line argument is
 	then
-		transpose  #call to the function
+		transpose "${@:2}"  #call to the function
 fi
 
 if [ "$1" == "mean" ]  #check what the command line argument is
 	then
-		mean  #call to the function
+		mean "${@:2}" #call to the function
 fi
 
 if [ "$1" == "add" ]  #check what the command line argument is
 	then
-		add  #call to the function
+		add "${@:2}" #call to the function
 fi
 
 if [ "$1" == "multiply" ]  #check what the command line argument is
