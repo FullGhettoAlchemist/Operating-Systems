@@ -106,13 +106,14 @@ while read line
 do
   for i in $line
   do
-  	echo -e -n "$i \t" >> temp2
+  	echo -e -n "$i\t" >> temp2
   done
   echo -e >> temp2
 done < "${1:-/dev/stdin}"
 
 matdims=$(dims temp2)
 set -- $matdims
+row_count=$1
 col_count=$2
 
 for (( i=1; i <= $col_count; i++))
@@ -120,8 +121,9 @@ for (( i=1; i <= $col_count; i++))
 	echo -e >> transposed
 done
 
-cat transposed
-rm -f temp2 transposed
+cut -f 1-$row_count transposed >> final
+cat final
+rm -f temp2 transposed final
 
 }
 
@@ -155,7 +157,9 @@ mean() {
    	for i in $row 
    	do
    		sums=$(($sums+$i))
-   		val=$(( (sums + ($row_count / 2)) / $row_count )) #(a + (b/2)*( (a>0)*2-1 )) / b
+   		#val=$(( (sums + ($row_count / 2)) / $row_count )) #(a + (b/2)*( (a>0)*2-1 )) / b
+		#val=$(( ($sums+($row_count/2))*(($sums>0)*2-1/$row_count) ))
+		val=$(((sums + (row_count/2)*( (sums>0)*2-1 )) / row_count))
    	done
    	echo $val >> average
    	sums=0
@@ -274,13 +278,17 @@ multiply() {
 			left=$(echo "$file1" | cut -f"$i")
 			right=$(echo "$file2" | cut -f"$i")
 			products=$((($left*$right)))
-			echo -ne "$products \t"
+			echo -ne "$products \t" >> results
 			i=$[$i+1]
 		done
-		echo -e 
+		echo -e >> results
 	done 3<mat1 4<mat2
 
-	rm -f mat1 mat2
+	((col_count--))
+	cut -f 1-$col_count results >> final
+	cat final
+
+	rm -f mat1 mat2 results final
 
 }
 
