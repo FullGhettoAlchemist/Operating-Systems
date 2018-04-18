@@ -115,10 +115,10 @@ matdims=$(dims temp2)
 set -- $matdims
 col_count=$2
 
-   for (( i=1; i <= $col_count; i++))
-		do cut -f $i temp2 | tr "\n" "\t" >> transposed
-		echo -e >> transposed
-	done
+for (( i=1; i <= $col_count; i++))
+	do cut -f $i temp2 | tr "\n" "\t" >> transposed
+	echo -e >> transposed
+done
 
 cat transposed
 rm -f temp2 transposed
@@ -225,8 +225,11 @@ add (){
 		echo -e >> results
 	done 3<mat1 4<mat2
 
-	paste -s results
-	rm -f mat1 mat2 
+	((col_count--))
+	cut -f 1-$col_count results >> final
+	cat final
+	# cut - 1-$(( $col_count * 2 -1)) results >> final
+	rm -f mat1 mat2 results final
 }
 
 multiply() {
