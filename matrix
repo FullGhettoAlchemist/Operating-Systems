@@ -20,6 +20,7 @@ mismatchError=$(echo "Error. Dimensional mismatch.")
 temp=temporary$$
 temp2=temporary2$$
 temp3=temporary3$$
+temp4=temporary4$$
 mat1=matrix1$$
 mat2=matrix2$$
 transposed=trans$$
@@ -28,8 +29,11 @@ average=avg$$
 matrix_sum=mat_sum$$
 results=result$$
 final=finalresults$$
+mult1=multtemp1$$
+mult2=multtemp2$$
+multdims=multidims$$
 
-trap 'rm -f $temp $temp2 $results $transposed $transposed2 $average $results; exit 1' INT HUP TERM
+trap 'rm -f $temp $temp2 $temp3 $temp4 $mat1 $mat2 $final $mult1 $mult $transposed $transposed2 $average $results ; exit 1' INT HUP TERM
 
 # # check to see if there is an operation selected to perform, if not throw an error
 # if [[ "$1" != "" ]]; then
@@ -61,7 +65,7 @@ trap 'rm -f $temp $temp2 $results $transposed $transposed2 $average $results; ex
 function dims () {
 
 if [[ "$2" != "" ]]; then
-    echo "Error. Too many arguments."
+    echo "Error. Too many arguments." >&2
     exit 21
 fi
 #if a file exists, read from it and make a copy to use in temp file
@@ -98,7 +102,7 @@ rm -f temp
 transpose () {
 
 if [[ "$2" != "" ]]; then
-    echo "Error. Too many arguments."
+    echo "Error. Too many arguments." >&2
     exit 21
 fi
 
@@ -178,7 +182,7 @@ add (){
    #read file in $1
 
    if [[ "$2" == "" ]]; then
-    echo "Error. No argument present."
+    echo "Error. No argument present." >&2
     exit 21
 	fi
 
@@ -206,7 +210,7 @@ add (){
 	mat2dims=$(dims mat2)
 
 	if [ "$mat1dims" != "$mat2dims" ]; then
-		echo "Error. Dimensional mismatch."
+		echo "Error. Dimensional mismatch." >&2
 		rm -f mat1 mat2
 		exit 21
 	fi
@@ -257,38 +261,111 @@ multiply() {
 	  echo -e >> mat2
 	done < "${2:-/dev/stdin}"
 
-	mat1dims=$(dims mat1)
-	mat2dims=$(dims mat2)
+	mat1counter=0
+	while read row
+	do
+		for i in $row
+		do
+			((mat1counter++))
+		done
+	done < mat1
 
-	if [ "$mat1dims" != "$mat2dims" ]; then
-		echo "Error. Dimensional mismatch."
+#count the number of lines in the temp file using word count
+	mat1rows=$(wc -l < mat1)
+#the column count is equal to the total number of elements/# of rows
+	mat1cols=$(($mat1counter/$mat1rows))
+
+	echo $mat1rows $mat1cols
+	mat2counter=0
+	while read row
+	do
+		for i in $row
+		do
+			((mat2counter++))
+		done
+	done < mat2
+
+#count the number of lines in the temp file using word count
+	mat2rows=$(wc -l < mat2)
+#the column count is equal to the total number of elements/# of rows
+	mat2cols=$(($mat2counter/$mat2rows))
+
+	echo $mat2rows $mat2cols
+	#mat1dims=$(dims mat1)
+	# set -- $mat1dims
+	# mat1rows=$1
+	# mat1cols=$2
+
+	# set -- $mat2dims
+	# mat2rows=$1
+	# mat2cols=$2
+
+	if [ "$mat1cols" != "$mat2rows" ]; then
+		echo "Error. Dimensional mismatch." >&2
 		rm -f mat1 mat2
 		exit 21
 	fi
 
-	set -- $mat1dims
-	col_count=$2
-	((col_count++))
+	transpose mat2 >> transposed2
 
+	while read leftmatline
+	do
+		i=0
+		while [ $i -lt $mat2cols ]
+		do
+			echo -e -n "$leftmatline\t" >> mult1
+			echo -e >> mult1
+			((i++))
+		done
+	done < mat1
+
+	# checkdims1=$(dims mult1)
+	# echo "mult1 dimensions: $checkdims1"
+	# checkdims2=$(dims mult2)
+	# echo "mult2 dimensions: $checkdims2"
+	for((i=0;i<$mat1rows;i++))
+	do
+		paste transposed2 >> mult2
+	done
+
+	((mat1cols++))
 	while read <&3 file1 && read <&4 file2
 	do
 		i=1
-		while [ $i -lt $col_count ]
+		running_total=0
+		while [ $i -lt $mat1cols ]
 		do
 			left=$(echo "$file1" | cut -f"$i")
 			right=$(echo "$file2" | cut -f"$i")
 			products=$((($left*$right)))
-			echo -ne "$products \t" >> results
+			running_total=$((running_total+$products))
 			i=$[$i+1]
 		done
-		echo -e >> results
-	done 3<mat1 4<mat2
+		echo $running_total >> temp4
+	done 3<mult1 4<mult2
 
-	((col_count--))
-	cut -f 1-$col_count results >> final
+	#((col_count--))
+	#cut -f 1-$col_count results >> final
+	counter=0
+	while read templine
+	do
+		for i in $templine
+		do
+			if [ $counter == $mat1rows ]
+				then
+				echo -e >> temp3
+				counter=0
+			fi
+			echo -e -n "$i\t" >> temp3
+			((counter++))
+		done
+	done < temp4
+
+	echo -e >> temp3
+	cut -f 1-$mat1rows temp3 >> final
+	echo -e >> final
 	cat final
-
-	rm -f mat1 mat2 results final
+	rm -f mat1 mat2 results transposed2 mult1 mult2 temp4 temp3 final multdims
 
 }
 
@@ -296,24 +373,44 @@ if [ "$1" == "dims" ]  #check what the command line argument is
 	then
 		# dims $arg2 #call to the function
 		dims "${@:2}" #call to the function
-fi
 
-if [ "$1" == "transpose" ]  #check what the command line argument is
+	elif [ "$1" == "transpose" ]  #check what the command line argument is
 	then
-		transpose "${@:2}"  #call to the function
-fi
+		transpose "${@:2}"
 
-if [ "$1" == "mean" ]  #check what the command line argument is
+	elif [ "$1" == "mean" ]  #check what the command line argument is
 	then
 		mean "${@:2}" #call to the function
+
+	elif [ "$1" == "add" ]  #check what the command line argument is
+	then
+		add "${@:2}"
+
+	elif [ "$1" == "multiply" ]  #check what the command line argument is
+	then
+		multiply "${@:2}"
+
+	else
+		echo "Error. Bad command" >&2
+		exit 21
 fi
 
-if [ "$1" == "add" ]  #check what the command line argument is
-	then
-		add "${@:2}" #call to the function
-fi
+# if [ "$1" == "transpose" ]  #check what the command line argument is
+# 	then
+# 		transpose "${@:2}"  #call to the function
+# fi
 
-if [ "$1" == "multiply" ]  #check what the command line argument is
-	then
-		multiply "${@:2}" #call to the function
-fi
+# if [ "$1" == "mean" ]  #check what the command line argument is
+# 	then
+# 		mean "${@:2}" #call to the function
+# fi
+
+# if [ "$1" == "add" ]  #check what the command line argument is
+# 	then
+# 		add "${@:2}" #call to the function
+# fi
+
+# if [ "$1" == "multiply" ]  #check what the command line argument is
+# 	then
+# 		multiply "${@:2}" #call to the function
+# fi
