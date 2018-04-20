@@ -33,34 +33,7 @@ mult1=multtemp1$$
 mult2=multtemp2$$
 multdims=multidims$$
 
-trap 'rm -f $temp $temp2 $temp3 $temp4 $mat1 $mat2 $final $mult1 $mult $transposed $transposed2 $average $results ; exit 1' INT HUP TERM
-
-# # check to see if there is an operation selected to perform, if not throw an error
-# if [[ "$1" != "" ]]; then
-#     arg1="$1"
-# else
-#     echo "$unavailableError"
-#     exit 21
-# fi
-
-# #check to see if there is a second argument and assign it if it exists
-# #TODO: figure out if this file is readable or not
-# if [[ "$2" != "" ]]; then
-#     arg2="$2"
-# fi
-
-# #check to see if there is a third argument and assign it if it exists
-# #TODO: figure out if this file is readable or not
-# if [[ "$3" != "" ]]; then
-#     arg3="$3"
-# fi
-
-# #echo "$arg1"
-
-# # if [[ $arg1 == "" ]];
-# # 	then
-# # 		echo "$errorMessage"
-# # fi
+trap 'rm -f $temp $temp2 $temp3 $temp4 $mat1 $mat2 $final $mult1 $mult2 $multdims $transposed $transposed2 $average $results ; exit 1' INT HUP TERM
 
 function dims () {
 
@@ -100,37 +73,52 @@ rm -f temp
 }
 
 transpose () {
-
 if [[ "$2" != "" ]]; then
     echo "Error. Too many arguments." >&2
     exit 21
 fi
 
-while read line
+# while read line
+# 	do
+# 	  for i in $line
+# 	  do
+# 	  	echo -e -n "$i\t" >> temp2
+# 	done
+# 	  echo -e >> temp2
+# done < "${1:-/dev/stdin}"
+inputfile="inputfile$$"
+cat $1 > inputfile
+
+counter=0
+
+#loop through the temp file to count all elements 
+while read row
 do
-  for i in $line
-  do
-  	echo -e -n "$i\t" >> temp2
-  done
-  echo -e >> temp2
-done < "${1:-/dev/stdin}"
+	for i in $row
+	do
+		((counter++))
+	done
+done < inputfile
 
-matdims=$(dims temp2)
-set -- $matdims
-row_count=$1
-col_count=$2
+#count the number of lines in the temp file using word count
+row_count=$(wc -l < inputfile)
+#echo "row count is $row_count"
+# #the column count is equal to the total number of elements/# of rows
+col_count=$(($counter/$row_count))
+# matdims=$(dims temp2)
+# set -- $matdims
+# row_count=$1
+# col_count=$2
 
-for (( i=1; i <= $col_count; i++))
-	do cut -f $i temp2 | tr "\n" "\t" >> transposed
+for (( i=1; i <= col_count; i++))
+	do cut -f $i inputfile | tr "\n" "\t" >> transposed
 	echo -e >> transposed
 done
-
 cut -f 1-$row_count transposed >> final
 cat final
 rm -f temp2 transposed final
 
 }
-
 
 # #TODO: format the mean to appear as a row matrix
 mean() {
@@ -241,12 +229,13 @@ add (){
 }
 
 multiply() {
+	rm -f mat mat2 mult1 mult2 transposed2
    #read file in $1
    while read line
 	do
 	  for i in $line
 	  do
-	  	echo -e -n "$i \t" >> mat1
+	  	echo -e -n "$i\t" >> mat1
 	  done
 	  echo -e >> mat1
 	done < "${1:-/dev/stdin}"
@@ -256,7 +245,7 @@ multiply() {
 	do
 	  for i in $line
 	  do
-	  	echo -e -n "$i \t" >> mat2
+	  	echo -e -n "$i\t" >> mat2
 	  done
 	  echo -e >> mat2
 	done < "${2:-/dev/stdin}"
@@ -275,7 +264,7 @@ multiply() {
 #the column count is equal to the total number of elements/# of rows
 	mat1cols=$(($mat1counter/$mat1rows))
 
-	echo $mat1rows $mat1cols
+	#echo "mat1 dims are $mat1rows $mat1cols"
 	mat2counter=0
 	while read row
 	do
@@ -290,7 +279,7 @@ multiply() {
 #the column count is equal to the total number of elements/# of rows
 	mat2cols=$(($mat2counter/$mat2rows))
 
-	echo $mat2rows $mat2cols
+	#echo "mat2dims are $mat2rows $mat2cols"
 	#mat1dims=$(dims mat1)
 	# set -- $mat1dims
 	# mat1rows=$1
@@ -302,7 +291,7 @@ multiply() {
 
 	if [ "$mat1cols" != "$mat2rows" ]; then
 		echo "Error. Dimensional mismatch." >&2
-		rm -f mat1 mat2
+		rm -f mat1 mat2 temp4
 		exit 21
 	fi
 
@@ -329,6 +318,7 @@ multiply() {
 	done
 
 	((mat1cols++))
+	#echo "mat1 cols into while loop are $mat1cols"
 	while read <&3 file1 && read <&4 file2
 	do
 		i=1
@@ -363,9 +353,8 @@ multiply() {
 
 	echo -e >> temp3
 	cut -f 1-$mat1rows temp3 >> final
-	echo -e >> final
 	cat final
-	rm -f mat1 mat2 results transposed2 mult1 mult2 temp4 temp3 final multdims
+	rm -f mat1 mat2 results transposed2 mult1 mult2 temp4 temp3 multdims final
 
 }
 
